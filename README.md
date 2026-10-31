@@ -315,7 +315,9 @@ stale).
 | <kbd>F2</kbd> rename · <kbd>Del</kbd> trash · <kbd>Ctrl/⌘ Shift C</kbd> copy path | |
 | <kbd>Ctrl/⌘ C,</kbd> settings · <kbd>Ctrl/⌘ Shift D</kbd> latency HUD | |
 
-Drag and drop moves between panes; hold <kbd>Alt</kbd> to copy instead.
+Drag and drop moves between panes; hold <kbd>Alt</kbd> to copy instead. Each
+pane header carries split-right, split-down and — once more than one pane
+exists — a close button, so the layout is reachable without learning a chord.
 
 ---
 

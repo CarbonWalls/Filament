@@ -22,13 +22,26 @@ let url = argUrl;
 if (!url) {
   const bin = resolve(process.cwd(), "target/release/filament");
   child = spawn(bin, ["--port", "8124", "--allow-debug"], { stdio: ["ignore", "pipe", "pipe"] });
-  url = await new Promise((res) => {
+  let stderrBuf = "";
+  child.stderr.on("data", (d) => (stderrBuf += d.toString()));
+  url = await new Promise((res, rej) => {
+    const timer = setTimeout(() => rej(new Error(`daemon did not report a URL within 15s.\n${stderrBuf.trim()}`)), 15000);
     let buf = "";
     child.stdout.on("data", (d) => {
       buf += d.toString();
       const m = buf.match(/http:\/\/127\.0\.0\.1:\d+\/auth\?token=[a-f0-9]+/);
-      if (m) res(m[0]);
+      if (m) {
+        clearTimeout(timer);
+        res(m[0]);
+      }
     });
+    child.on("exit", (code) => {
+      clearTimeout(timer);
+      rej(new Error(`daemon exited with code ${code} before serving.\n${stderrBuf.trim()}`));
+    });
+  }).catch((e) => {
+    console.error(`\n${e.message}\n\nIs another filament still running? Try:  pkill -x filament\n`);
+    process.exit(1);
   });
 }
 

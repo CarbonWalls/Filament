@@ -63,6 +63,13 @@ async fn main() {
             #[cfg(all(unix, not(target_os = "macos")))]
             let _ = tokio::process::Command::new("xdg-open").arg(&url_open).spawn();
         });
+        // The opener is best-effort: a headless box, or Chromium running as
+        // root without --no-sandbox, will silently refuse to show a window.
+        // Say so instead of leaving the user staring at a terminal.
+        eprintln!(
+            "tried to open your browser — if nothing appeared (headless session, or \
+             Chromium refusing to run as root), paste the URL above yourself."
+        );
     }
 
     axum::serve(listener, router)

@@ -48,15 +48,31 @@ let auth = urlArg;
 if (!auth) {
   const bin = resolve(process.cwd(), "target/release/filament");
   child = spawn(bin, ["--port", "8123", "--allow-debug"], { stdio: ["ignore", "pipe", "pipe"] });
-  const line = await new Promise((res) => {
+  let stderrBuf = "";
+  child.stderr.on("data", (d) => (stderrBuf += d.toString()));
+  // Never wait forever: a daemon that cannot bind (usually a stale instance
+  // still holding the port) must fail loudly instead of hanging the suite.
+  auth = await new Promise((res, rej) => {
     let buf = "";
+    const timer = setTimeout(() => {
+      rej(new Error(`daemon did not report a URL within 15s.\n${stderrBuf.trim()}`));
+    }, 15000);
     child.stdout.on("data", (d) => {
       buf += d.toString();
       const m = buf.match(/http:\/\/127\.0\.0\.1:\d+\/auth\?token=[a-f0-9]+/);
-      if (m) res(m[0]);
+      if (m) {
+        clearTimeout(timer);
+        res(m[0]);
+      }
     });
+    child.on("exit", (code) => {
+      clearTimeout(timer);
+      rej(new Error(`daemon exited with code ${code} before serving.\n${stderrBuf.trim()}`));
+    });
+  }).catch((e) => {
+    console.error(`\n${e.message}\n\nIs another filament still running? Try:  pkill -x filament\n`);
+    process.exit(1);
   });
-  auth = line;
 }
 await page.goto(auth, { waitUntil: "domcontentloaded" });
 
@@ -165,6 +181,52 @@ const previewText = await page.locator(".preview-title").first().textContent();
 check("preview pane follows the other pane's selection", !!previewText && previewText !== "Nothing selected", `“${previewText}”`);
 
 await page.screenshot({ path: `${outDir}/01-split-desktop.png` });
+
+// ------------------------------------------------------- pane close storm ---
+// Regression: closing panes used to delete *pane state* even for ids that were
+// no longer tree leaves, so a leaf ended up rendering against nothing
+// ("Cannot read properties of undefined (reading 'path')") — and focus could
+// land on a corpse, after which every pane command silently no-oped.
+const paneState = () =>
+  page.evaluate(() => {
+    const ws = window.__filament.workspace;
+    const tree = JSON.stringify(ws.tree());
+    const leafIds = (tree.match(/"pane":"[^"]+"/g) || []).map((s) => s.slice(8, -1));
+    return {
+      leaves: leafIds.length,
+      panes: ws.panes().length,
+      missing: leafIds.filter((id) => !ws.pane(id)).length,
+      focusedOk: !!ws.focused(),
+    };
+  });
+await page.evaluate(() => {
+  const ws = window.__filament.workspace;
+  for (let i = 0; i < 5; i++) ws.split(ws.focusedId(), i % 2 ? "v" : "h", "list");
+});
+await sleep(700);
+const stormGrown = await paneState();
+let stormOk = stormGrown.missing === 0 && stormGrown.leaves === stormGrown.panes;
+const closures = [];
+for (let i = 0; i < 5; i++) {
+  await page.evaluate((i) => {
+    const ws = window.__filament.workspace;
+    const ids = ws.panes().map((p) => p.id);
+    ws.close(ids[i % 2 ? 0 : ids.length - 1]);
+  }, i);
+  await sleep(250);
+  const st = await paneState();
+  closures.push(`${st.leaves}/${st.panes}${st.focusedOk ? "" : "!focus"}`);
+  stormOk = stormOk && st.missing === 0 && st.leaves === st.panes && st.focusedOk;
+}
+check(
+  "closing a storm of panes keeps tree, state and focus consistent",
+  stormOk,
+  `${stormGrown.leaves} leaves → ${closures.join(" ")}`
+);
+await page.evaluate((root) => window.__filament.nav(root), `${demoRoot}/notes`);
+await sleep(600);
+const aliveRows = await page.locator(".rows-wrap .row").count();
+check("workspace still navigates after a close storm", aliveRows > 0, `${aliveRows} rows`);
 
 // --------------------------------------------------------------- palette ---
 await page.keyboard.press("Control+k");

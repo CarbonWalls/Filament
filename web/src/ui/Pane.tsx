@@ -77,6 +77,8 @@ export function Pane(props: { pane: PaneApi; workspace: Workspace; index: number
 
 function PaneTools(props: { pane: PaneApi }) {
   const wsRef = () => props.pane;
+  // Closing is only meaningful while something else remains to close onto.
+  const closable = createMemo(() => (currentWorkspace?.api.panes().length ?? 0) > 1);
   return (
     <>
       <button
@@ -98,6 +100,16 @@ function PaneTools(props: { pane: PaneApi }) {
       >
         <Icon name="splitV" size={14} />
       </button>
+      <Show when={closable()}>
+        <button
+          class="icon-btn"
+          style={{ width: "22px", height: "22px" }}
+          title="Close pane"
+          onClick={() => currentWorkspace?.api.close(wsRef().id)}
+        >
+          <Icon name="close" size={13} />
+        </button>
+      </Show>
     </>
   );
 }

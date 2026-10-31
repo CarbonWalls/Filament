@@ -41,6 +41,26 @@ interface WorkspaceState {
 
 const STORAGE = "filament.workspace.v2";
 
+/**
+ * Stand-in state for a pane whose real state has gone missing. Pane APIs read
+ * through this instead of `undefined`, so a layout/state mismatch degrades to
+ * an empty pane rather than throwing out of a reactive computation.
+ */
+const FALLBACK_PANE: PaneState = {
+  id: "",
+  view: "list",
+  path: "",
+  props: {},
+  selection: [],
+  cursor: 0,
+  sort: { key: "name", dir: 1 },
+  filter: "",
+  showHidden: false,
+  history: [""],
+  historyIndex: 0,
+  direction: 0,
+};
+
 let seq = 0;
 const nextId = () => `p${++seq}`;
 
@@ -67,6 +87,25 @@ function loadPersisted(): WorkspaceState | undefined {
     if (!raw) return undefined;
     const parsed = JSON.parse(raw) as WorkspaceState;
     if (!parsed.tree || !parsed.panes) return undefined;
+    // Prune ghosts and repair dangling leaves before anything renders: booting
+    // a layout that references missing pane state is unrecoverable otherwise.
+    const referenced = new Set<string>();
+    const walk = (n: LayoutNode): void => {
+      if (!n) return;
+      if (n.type === "leaf") referenced.add(n.pane);
+      else {
+        walk(n.a);
+        walk(n.b);
+      }
+    };
+    walk(parsed.tree);
+    if (!referenced.size) return undefined;
+    for (const id of Object.keys(parsed.panes)) {
+      if (!referenced.has(id)) delete parsed.panes[id];
+    }
+    for (const id of referenced) {
+      if (!parsed.panes[id]) return undefined; // irreparable — start fresh
+    }
     // Rebuild the id counter past anything restored.
     for (const id of Object.keys(parsed.panes)) {
       const n = Number(id.replace(/^\D+/, ""));
@@ -108,7 +147,14 @@ export function createWorkspace(home: string) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try {
-        localStorage.setItem(STORAGE, JSON.stringify({ tree: state.tree, panes: state.panes }));
+        // Serialise only panes the tree actually references: a stale key here
+        // is how a ghost layout would survive a reload.
+        const live = new Set(pathOf(state.tree).map((l) => l.pane));
+        const panes: Record<string, PaneState> = {};
+        for (const [id, p] of Object.entries(state.panes)) {
+          if (live.has(id)) panes[id] = p as PaneState;
+        }
+        localStorage.setItem(STORAGE, JSON.stringify({ tree: state.tree, panes }));
       } catch {
         /* ignore quota errors */
       }
@@ -118,7 +164,10 @@ export function createWorkspace(home: string) {
   // ---------------------------------------------------------------- pane api
 
   function paneApi(id: string): PaneApi {
-    const st = () => state.panes[id];
+    // Never throw on missing state: a throw inside a render/effect takes the
+    // whole window down with it ("everything is frozen"), so a pane whose
+    // state has gone missing degrades to an empty one instead.
+    const st = () => state.panes[id] ?? FALLBACK_PANE;
     return {
       id,
       path: () => st().path,
@@ -289,14 +338,31 @@ export function createWorkspace(home: string) {
   }
 
   function close(paneId: string) {
-    const leaves = pathOf(state.tree);
+    const leaves = pathOf(state.tree).map((l) => l.pane);
     if (leaves.length <= 1) return;
+    const idx = leaves.indexOf(paneId);
+    // Only a leaf can be closed. Deleting the *state* of an id that is not in
+    // the tree leaves a leaf pointing at nothing, and the first `pane.path()`
+    // on it throws — which is what used to freeze the window.
+    if (idx === -1) return;
+    // Take the successor from the tree, before mutating. `Object.keys(pane
+    // map)` is not a reliable neighbour: read right after produce() it can
+    // still contain the key we just deleted, which is how focus used to land
+    // on a corpse and every pane command started silently no-oping.
+    const next = leaves[idx + 1] ?? leaves[idx - 1];
+    const wasFocused = focusedId() === paneId;
     setState(produce((s) => {
       s.tree = removeLeaf(s.tree, paneId)!;
       delete s.panes[paneId];
     }));
-    const remaining = Object.keys(state.panes);
-    if (!remaining.includes(focusedId())) setFocusedId(remaining[0]);
+    if (wasFocused || !state.panes[focusedId()]) setFocusedId(next);
+    // Belt and braces: if that neighbour is gone too, take the first live leaf.
+    if (!state.panes[focusedId()]) {
+      const alive = pathOf(state.tree)
+        .map((l) => l.pane)
+        .filter((id) => !!state.panes[id]);
+      if (alive.length) setFocusedId(alive[0]);
+    }
     persist();
     metrics.record("pane.close", 1);
   }
