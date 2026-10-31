@@ -1,0 +1,3 @@
+/* Ember is the default palette and lives in the core stylesheet; this module
+   exists so the theme is *selectable as a plugin* like any other. */
+[data-theme="ember"] { color-scheme: dark; }

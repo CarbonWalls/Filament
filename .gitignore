@@ -1,0 +1,23 @@
+# build artifacts
+target/
+*.rs.bk
+
+# the UI toolchain / build output (daemon embeds web/dist via rust-embed)
+web/node_modules/
+web/dist/
+web/*.log
+
+# generated content — regenerate with scripts/make_demo.py
+demo/
+
+# WASM plugin build output — rebuild with plugins/zip-vfs/build.sh
+plugins/zip-vfs/plugin.wasm
+plugins/zip-vfs/target/
+plugins/zip-vfs/harness/target/
+
+# the local SQLite cache + thumbnails (runtime data, keyed per machine)
+cache/
+
+# throwaway
+*.tmp
+.fuse_hidden*

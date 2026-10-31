@@ -1,0 +1,5 @@
+id = "zip-vfs"
+version = "0.1.0"
+capabilities = ["fs:read"]
+hooks = ["list", "read"]
+matches = ["*.zip"]

@@ -1,0 +1,17 @@
+{
+  "name": "Filament",
+  "short_name": "Filament",
+  "description": "A plugin-composed, latency-hiding file manager",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0e10",
+  "theme_color": "#0c0e10",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

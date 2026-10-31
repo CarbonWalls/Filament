@@ -1,0 +1,19 @@
+[package]
+name = "zip-vfs-plugin"
+version = "0.1.0"
+edition = "2021"
+description = "Filament backend plugin: mounts .zip archives as folders"
+
+[lib]
+crate-type = ["cdylib"]
+
+# Zero dependencies on purpose: the plugin is a sandboxed, offline-buildable
+# wasm module that talks to the host over a tiny line-record ABI.
+[dependencies]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

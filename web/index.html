@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d0f11" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Filament</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <style>
+      /* Pre-paint shell: identical background to the app so the first frame
+         after HTML parse is never a white flash. */
+      html, body { margin: 0; height: 100%; background: #0d0f11; }
+      #boot {
+        position: fixed; inset: 0; display: grid; place-items: center;
+        font: 500 13px/1.4 ui-sans-serif, system-ui, sans-serif;
+        color: #6b7378; letter-spacing: .08em; text-transform: uppercase;
+      }
+      #boot.hide { opacity: 0; transition: opacity 140ms ease-out; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="boot">filament</div>
+    <div id="overlay-root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

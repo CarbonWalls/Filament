@@ -1,0 +1,40 @@
+[package]
+name = "filament"
+version = "0.1.0"
+edition = "2021"
+description = "Filament — a plugin-composed, latency-hiding file manager daemon"
+
+[dependencies]
+axum = { version = "0.7", features = ["ws"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "fs", "process", "io-util", "net", "time", "sync"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+notify = "6"
+dirs = "5"
+trash = "3"
+rust-embed = "8"
+mime_guess = "2"
+rusqlite = { version = "0.32", features = ["bundled"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
+rand = "0.8"
+toml = "0.8"
+# NOTE: wasmtime 24 gates the *parsing* of the reference-types proposal behind
+# its `gc` cargo feature (`Config::default()` sets
+# `WasmFeatures::REFERENCE_TYPES = cfg!(feature = "gc")`, and
+# `Config::wasm_reference_types()` is itself `#[cfg(feature = "gc")]`). rustc's
+# wasm32-unknown-unknown target enables reference types, so LLVM encodes
+# `call_indirect`'s table index as a LEB — without this feature the plugin host
+# rejects *every* rustc-produced module with
+# "Invalid input WebAssembly code at offset N: zero byte expected".
+# Enabling `gc` restores reference-types parsing; the GC proposal itself stays
+# off (wasmparser defaults `gc = false`, wasmtime only forces it off when the
+# cargo feature is absent).
+wasmtime = { version = "24", default-features = false, features = ["cranelift", "runtime", "gc"] }
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+codegen-units = 1
+strip = true

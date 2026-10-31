@@ -1,0 +1,21 @@
+# WebAssembly codegen flags for the zip-vfs plugin.
+#
+# These pin the guest to proposals the host can definitely validate:
+#   * extended-const — wasmtime 24 explicitly sets EXTENDED_CONST = false
+#     ("not yet implemented in Wasmtime"), so emitting one would fail validation;
+#   * wide-arithmetic — absent from wasmparser 0.215 entirely.
+#
+# Note what these flags CANNOT fix: rustc emits `call_indirect`'s table index as
+# a LEB rather than the MVP's single zero byte, and disabling the
+# `reference-types` target feature does not change that (verified: the module is
+# byte-identical either way). A host that parses that position strictly as an
+# MVP reserved byte therefore rejects the module no matter how it is built.
+# The real fix lives in the host: build wasmtime with its `gc` cargo feature,
+# which is what enables reference-types parsing in wasmtime 24. See
+# /root/filament/Cargo.toml.
+#
+# Keeping the flags here (rather than in RUSTFLAGS) means a plain
+# `cargo build --target wasm32-unknown-unknown --release` from this directory
+# or from `crate/` picks them up.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=-extended-const,-wide-arithmetic"]

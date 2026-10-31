@@ -1,0 +1,10 @@
+[package]
+name = "zip-vfs-harness"
+version = "0.1.0"
+edition = "2021"
+description = "Host-side integration harness for the zip-vfs wasm plugin"
+
+[dependencies]
+# Same engine configuration the daemon uses, so the harness proves what the
+# daemon will actually do. Shares the daemon's target dir via CARGO_TARGET_DIR.
+wasmtime = { version = "24", default-features = false, features = ["cranelift", "runtime", "gc"] }
